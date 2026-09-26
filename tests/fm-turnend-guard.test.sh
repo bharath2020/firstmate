@@ -555,6 +555,72 @@ test_hook_silent_in_idle_secondmate_home() {
   pass "fm-turnend-guard: idle-by-default - silent in a secondmate home with nothing in flight"
 }
 
+# Idle-by-default stops at an UNACKNOWLEDGED durable wake row. The queue exists
+# so an actionable event survives a watcher close until the next drain, and the
+# drain only happens on a turn. Reading a home with a pending row as "nothing to
+# supervise" ends the turn with that row undelivered and arms no watcher to
+# deliver it - and in a secondmate home nobody types a next turn, so the row
+# waits indefinitely instead of until the next turn end.
+test_hook_blocks_on_a_pending_wake_row_with_no_work_in_flight() {
+  local dir out status
+  dir=$(make_secondmate_dir "$TMP_ROOT/hook-secondmate-queued-row")
+  printf '%s\t1\tcheck\tstranded\tcheck: a row nobody has drained\n' "$(date +%s)" \
+    > "$dir/state/.wake-queue"
+  out=$(run_hook "$dir" false); status=$?
+  expect_code 2 "$status" "hook must block a stop that would leave a queued wake row undelivered"
+  assert_contains "$out" "$REQUIRED_REASON" "block reason must contain the exact required instruction"
+  # The banner's cause cascade falls through to relay polling when nothing else
+  # is registered, so a queued row must name itself rather than inherit a relay
+  # claim about a home that has no relay poll at all.
+  assert_not_contains "$out" "X-mode relay polling" \
+    "a queued-row block must not blame relay polling this home never armed"
+  pass "fm-turnend-guard: a pending durable wake row keeps supervision needed with nothing in flight"
+}
+
+# The same row, once acknowledged and consumed, is no longer pending: an empty
+# queue must not hold a home in a forced-continuation loop.
+test_hook_silent_when_the_queue_is_drained_empty() {
+  local dir out status
+  dir=$(make_secondmate_dir "$TMP_ROOT/hook-secondmate-drained")
+  : > "$dir/state/.wake-queue"
+  out=$(run_hook "$dir" false); status=$?
+  expect_code 0 "$status" "hook must stay silent once the queue is drained empty"
+  [ -z "$out" ] || fail "an empty queue produced guard output: $out"
+  pass "fm-turnend-guard: a drained empty queue leaves an idle home silent"
+}
+
+# A pending row makes supervision needed, but bin/fm-guard.sh runs from inside
+# bin/fm-wake-drain.sh while those very rows are being handled, so it must keep
+# gating its missing-watcher alarm on watched work. Otherwise every drain in a
+# home with no other work alarms about the row it is draining.
+test_watched_work_excludes_a_pending_wake_row() {
+  local dir state
+  dir=$(make_primary_dir "$TMP_ROOT/watched-work-split")
+  state="$dir/state"
+  printf '%s\t1\tcheck\tstranded\tcheck: a row being handled right now\n' "$(date +%s)" \
+    > "$state/.wake-queue"
+  # shellcheck source=/dev/null
+  ( . "$ROOT/bin/fm-supervision-lib.sh"
+    fm_supervision_status "$state" 300
+    [ "$FM_SUP_NEEDED" = true ] || exit 3
+    [ "$FM_SUP_QUEUE_PENDING" = true ] || exit 4
+    [ "$FM_SUP_WATCHED_WORK" = false ] || exit 5 )
+  case $? in
+    0) ;;
+    3) fail "a pending wake row did not make supervision needed" ;;
+    4) fail "a pending wake row was not reported as pending" ;;
+    5) fail "a pending wake row was counted as work riding on a watcher" ;;
+    *) fail "the supervision predicate could not be evaluated" ;;
+  esac
+  : > "$state/task1.meta"
+  # shellcheck source=/dev/null
+  ( . "$ROOT/bin/fm-supervision-lib.sh"
+    fm_supervision_status "$state" 300
+    [ "$FM_SUP_WATCHED_WORK" = true ] || exit 5 )
+  [ $? -eq 0 ] || fail "an in-flight task was not counted as work riding on a watcher"
+  pass "fm-supervision-lib: a pending wake row needs supervision without counting as watched work"
+}
+
 # The stop_hook_active loop guard bounds the secondmate to one forced
 # continuation per turn, exactly as it does for the main primary - no wedged,
 # un-endable session.
@@ -2331,6 +2397,9 @@ test_hook_uses_state_override
 test_hook_loop_guard_allows_retry
 test_hook_blocks_in_secondmate_own_home
 test_hook_silent_in_idle_secondmate_home
+test_hook_blocks_on_a_pending_wake_row_with_no_work_in_flight
+test_hook_silent_when_the_queue_is_drained_empty
+test_watched_work_excludes_a_pending_wake_row
 test_hook_secondmate_loop_guard_allows_retry
 test_hook_secondmate_reinvoke_recovery_loop
 test_hook_silent_in_secondmate_child_worktree

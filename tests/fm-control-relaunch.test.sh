@@ -27,6 +27,8 @@ set -u
 . "$ROOT/bin/fm-trace-context-lib.sh"
 # shellcheck source=/dev/null
 . "$ROOT/bin/fm-tasks-axi-lib.sh"
+# shellcheck source=/dev/null
+. "$ROOT/bin/fm-pr-lib.sh"
 
 CONTROL="$ROOT/bin/fm-control.sh"
 SPAWN="$ROOT/bin/fm-spawn.sh"
@@ -488,6 +490,32 @@ test_relaunch_preserves_durable_task_metadata() {
   [ "$(meta_field "$dir" rl19 decisions_reviewed)" = 1 ] \
     || fail "the task decision state must survive relaunch"
   pass "fm-control relaunch: durable task metadata survives replacement launch publication"
+}
+
+# A relaunched task must keep WATCHING its PR. The launch owner appends its own
+# control_relaunch_tx crash-recovery field after the preserved record, so the
+# merged-PR poll's canonical metadata identity has to survive a firstmate-owned
+# field landing after pr=. When it did not, the watcher rejected the poll as an
+# unauthenticated state check and a merge on the forge was never noticed.
+test_relaunch_keeps_an_armed_pr_poll_authenticating() {
+  local dir out rc state url=https://github.com/example/repo/pull/19
+  dir=$(new_case pr-poll-armed rl43)
+  add_ship_task "$dir" rl43 claude
+  state="$dir/home/state"
+  printf 'pr=%s\n' "$url" >> "$state/rl43.meta"
+  fm_pr_poll_prepare "$state" rl43 github "$url" github.com example/repo 19 \
+    "$ROOT/bin/fm-pr-poll.sh" || fail "could not prepare the armed PR poll fixture"
+  fm_pr_poll_publish_prepared || fail "could not publish the armed PR poll fixture"
+  fm_pr_poll_artifacts_valid "$state" rl43 "$ROOT/bin/fm-pr-poll.sh" \
+    || fail "the PR poll fixture did not authenticate before the relaunch"
+
+  out=$(run_control "$dir" rl43 relaunch --note "keep watching the PR"); rc=$?
+  expect_code 0 "$rc" "relaunch should succeed with an armed PR poll"$'\n'"$out"
+  [ -n "$(meta_field "$dir" rl43 control_relaunch_tx)" ] \
+    || fail "this case only proves anything while the launch owner records its transaction"
+  fm_pr_poll_artifacts_valid "$state" rl43 "$ROOT/bin/fm-pr-poll.sh" \
+    || fail "the armed PR poll stopped authenticating after the relaunch: $(cat "$state/rl43.meta")"
+  pass "fm-control relaunch: an armed PR poll still authenticates after the replacement launch"
 }
 
 test_relaunch_serializes_concurrent_durable_metadata_publication() {
@@ -2974,6 +3002,7 @@ test_relaunch_refuses_before_exit_when_the_composer_holds_pending_text
 test_relaunch_refuses_before_exit_when_the_composer_state_is_unproven
 test_relaunch_from_linked_home_preserves_recorded_worktree
 test_relaunch_preserves_durable_task_metadata
+test_relaunch_keeps_an_armed_pr_poll_authenticating
 test_relaunch_serializes_concurrent_durable_metadata_publication
 test_disabled_relaunch_clears_prior_trace_context
 test_relaunch_appends_the_progress_note_to_the_instructions

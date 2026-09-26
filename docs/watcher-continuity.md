@@ -189,6 +189,7 @@ The next Stop then re-arms as before.
 ### Durable queue and turn-end backstop
 
 The durable wake queue preserves actionable events between a watcher close and the next drain.
+An unacknowledged row is itself a reason the home still needs supervision, so emptying the fleet never reclassifies a home holding one as idle; `bin/fm-supervision-lib.sh` owns that condition set.
 The bounded turn-end guard enforces recovery at Stop when no watcher is live and no open generation claim is still deciding.
 So a finished, hung, or identity-mismatched claim cannot suppress that recovery ([`turnend-guard.md`](turnend-guard.md#harness-integrations) owns that boundary).
 
