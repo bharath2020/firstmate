@@ -41,9 +41,13 @@
 # A deliberately smaller configured budget remains bounded and may be
 # unmeasured, rather than being mislabeled unavailable. Each distinct URL is
 # observed once per poll and applied to every owner. A final observation applies
-# to every owner without another forge read. When the budget runs out
-# mid-observation, the poll ends with that URL's records untouched; only a
-# genuine forge failure or head change records an error.
+# to every owner without another forge read. A read either cap killed measured
+# nothing about the forge, so that URL's records are left untouched and it is
+# observed first next poll; the poll itself continues, because the per-call cap
+# can fire with most of the budget unspent, and the reserve check above ends the
+# poll when the budget is what ran out. Only a genuine forge failure or head
+# change records an error, and a real failure anywhere in a wave still does so
+# even beside a capped read.
 # API failure leaves error evidence; an expired or absent observation is not
 # silence. FM_CONTRIBUTIONS_MAX_AGE (default 900 seconds) bounds freshness.
 # A URL whose last good observation is merged or closed is final: it is
@@ -182,17 +186,19 @@ write_record() { # task record-json-file
 }
 
 forge() {
-  local remaining bounded=0 rc=0 forge_err=${FORGE_ERR:-$TMP/forge.err}
+  local remaining rc=0 forge_err=${FORGE_ERR:-$TMP/forge.err}
   remaining=$((DEADLINE - $(date +%s)))
   # The budget, not the forge, refused this read.
-  [ "$remaining" -gt 0 ] || { BUDGET_EXHAUSTED=1; : > "$TMP/budget-exhausted"; return 1; }
-  if [ "$remaining" -le 5 ]; then bounded=1; else remaining=5; fi
+  [ "$remaining" -gt 0 ] || { UNMEASURED=1; : > "$TMP/unmeasured"; return 1; }
+  [ "$remaining" -le 5 ] || remaining=5
   fm_run_timed "$remaining" env GH_PROMPT_DISABLED=1 GH_NO_UPDATE_NOTIFIER=1 \
     gh "$@" 2> "$forge_err" || rc=$?
-  # A read killed at the budget's own deadline is budget exhaustion too.
-  if [ "$rc" -eq 124 ] && [ "$bounded" -eq 1 ]; then
-    BUDGET_EXHAUSTED=1
-    : > "$TMP/budget-exhausted"
+  # A read a cap killed observed nothing about the forge, so it is unmeasured
+  # whichever cap fired: the five-second per-call one or the budget's own
+  # deadline. fm_timed_out owns which statuses mean a cap fired.
+  if fm_timed_out "$rc"; then
+    UNMEASURED=1
+    : > "$TMP/unmeasured"
   elif [ "$rc" -ne 0 ]; then
     : > "$TMP/forge-unavailable"
   fi
@@ -202,10 +208,10 @@ forge() {
 wait_forges() { # background forge pids from one independent read wave
   local pid rc=0
   for pid in "$@"; do wait "$pid" || rc=1; done
-  # A known failed parallel read is unavailable even if another read reached
-  # the deadline. Only an otherwise successful wave cut short is unmeasured.
-  if [ ! -e "$TMP/forge-unavailable" ] && [ -e "$TMP/budget-exhausted" ]; then
-    BUDGET_EXHAUSTED=1
+  # A known failed parallel read is unavailable even if another read was cut
+  # short. Only an otherwise successful wave cut short is unmeasured.
+  if [ ! -e "$TMP/forge-unavailable" ] && [ -e "$TMP/unmeasured" ]; then
+    UNMEASURED=1
   fi
   return "$rc"
 }
@@ -215,7 +221,7 @@ observe() { # canonical GitHub URL -> normalized JSON
   case "$url" in https://github.com/*) ;; *) return 1 ;; esac
   part=${url#https://github.com/}; number=${part##*/}; part=${part%/*}; kind=${part##*/}; part=${part%/*}
   case "$kind" in pull) endpoint="repos/$part/pulls/$number" ;; issues) endpoint="repos/$part/issues/$number" ;; *) return 1 ;; esac
-  rm -f -- "$TMP/budget-exhausted" "$TMP/forge-unavailable"
+  rm -f -- "$TMP/unmeasured" "$TMP/forge-unavailable"
   forge api "$endpoint" > "$TMP/core.json" || return 1
   jq -e '(.state == "open" or .state == "closed") and (.user.login | type == "string")' "$TMP/core.json" >/dev/null || return 1
   if [ "$kind" = pull ]; then
@@ -339,7 +345,7 @@ poll() {
     | sort_by(.at,.tasks[0],.url)[] | [.url] + .tasks | @tsv' > "$TMP/known.tsv"
   DEADLINE=$(( $(date +%s) + BUDGET ))
   OBSERVATION_RESERVE=$((BUDGET < 15 ? BUDGET : 15))
-  BUDGET_EXHAUSTED=0
+  UNMEASURED=0
   while IFS=$'\t' read -r -a row; do
     [ "${#row[@]}" -ge 2 ] || continue
     [ $((DEADLINE - $(date +%s))) -ge "$OBSERVATION_RESERVE" ] || break
@@ -352,10 +358,14 @@ poll() {
       continue
     fi
     observed=0
+    UNMEASURED=0
     observe "$url" || observed=$?
-    # An observation the budget cut short is unmeasured, not unavailable: keep
-    # every owner's prior record so the URL is observed first next poll.
-    [ "$BUDGET_EXHAUSTED" -eq 0 ] || break
+    # An observation a cap cut short is unmeasured, not unavailable: keep every
+    # owner's prior record so the URL is observed first next poll. Move on to
+    # the next URL rather than ending the poll, because a per-call cap can fire
+    # with most of the budget unspent; the loop's own reserve check above ends
+    # the poll when the budget is what actually ran out.
+    [ "$UNMEASURED" -eq 0 ] || continue
     # Wake once per failure episode: only when no owner has a prior error.
     if [ "$observed" -ne 0 ] && jq -ne --slurpfile saved "$TMP/saved.json" --arg url "$url" --args \
       'all($ARGS.positional[] as $task | [$saved[0][] | select(.task == $task) | .records[] | select(.url == $url)] | first;

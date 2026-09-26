@@ -376,6 +376,33 @@ test_sweep_respawns_confirmed_dead_secondmate() {
   pass "sweep: a confirmed-dead secondmate endpoint is killed and respawned"
 }
 
+# The session-start sweep probes its mates concurrently, and every respawn is a
+# FRESH bin/fm-spawn.sh in one home, so each one takes that home's task-set
+# lock. Only one respawn can hold it at a time, so the sweep must make them take
+# turns: relaunching one mate and reporting the rest failed left dead mates down
+# until a later session, one recovered per run.
+test_sweep_respawns_every_dead_secondmate_in_one_pass() {
+  local w fb tmuxfb log out id
+  w=$(new_world sweep-dead-many)
+  add_sm_home "$w" sm1 firstmate:fm-sm1
+  add_sm_home "$w" sm2 firstmate:fm-sm2
+  add_sm_home "$w" sm3 firstmate:fm-sm3
+  fb=$(make_toolchain "$w"); tmuxfb=$(make_liveness_tmux "$w")
+  log="$w/calls.log"; : > "$log"
+
+  out=$(run_bootstrap "$tmuxfb:$fb" "$w/home" zsh "$log")
+
+  assert_not_contains "$out" "respawn failed" \
+    "no dead mate may fail its respawn just because a sibling respawn held this home's task-set lock"
+  assert_not_contains "$out" "task set is locked" \
+    "a sibling respawn is not a forced teardown and must never be reported as one"
+  for id in sm1 sm2 sm3; do
+    assert_grep 'relaunched' "$w/home/state/.secondmate-relaunch-$id" \
+      "dead mate $id was not relaunched in this sweep: $out"
+  done
+  pass "sweep: every confirmed-dead secondmate is respawned in one pass"
+}
+
 test_sweep_skips_mate_whose_liveness_lock_is_held() {
   local w fb tmuxfb log out holder i=0
   w=$(new_world sweep-lock-held)
@@ -707,6 +734,7 @@ test_tmux_agent_state_rejects_malformed_targets_before_probe
 test_herdr_agent_state_preserves_husk_classifier
 test_agent_state_dispatcher_and_compatibility
 test_sweep_respawns_confirmed_dead_secondmate
+test_sweep_respawns_every_dead_secondmate_in_one_pass
 test_sweep_leaves_alive_secondmate_untouched
 test_sweep_respawns_authoritatively_missing_pi_secondmate
 test_sweep_respawns_authoritatively_missing_pi_signed_secondmate

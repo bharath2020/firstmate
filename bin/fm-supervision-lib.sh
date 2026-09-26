@@ -35,10 +35,28 @@ fm_sup_stat_mtime() {
 #                         sweep's call at execution time, and a home whose check
 #                         no longer validates needs the watcher precisely so the
 #                         sweep can report the rejection instead of going quiet.
-#   FM_SUP_NEEDED         true/false - in-flight work, an X-mode relay poll, a
+#   FM_SUP_WATCHED_WORK   true/false - in-flight work, an X-mode relay poll, a
 #                         registered event source (a source is a wait on an
 #                         external process, not a task, so it has no metadata),
-#                         or a registered custom check
+#                         or a registered custom check. This is the narrower
+#                         "something is riding on a watcher right now" fact, for
+#                         a caller that alarms about a missing watcher.
+#   FM_SUP_NEEDED         true/false - FM_SUP_WATCHED_WORK, or an unacknowledged
+#                         durable wake row. A pending row is supervision work in
+#                         its own right: the queue holds an actionable event
+#                         until a turn drains it, so reading a home with one as
+#                         idle ends the turn with that row undelivered and arms
+#                         nothing to deliver it. In a home nobody types in - a
+#                         secondmate - there is no next turn to rescue it, so
+#                         the row waits indefinitely rather than until the next
+#                         turn end. The row is pending only until its
+#                         post-handling acknowledgement consumes it, so this
+#                         cannot hold a drained home busy.
+#                         A caller that runs WHILE those rows are being handled -
+#                         bin/fm-guard.sh, invoked from bin/fm-wake-drain.sh -
+#                         wants FM_SUP_WATCHED_WORK instead, because a pending
+#                         row is the normal state there and it already reports
+#                         queued rows in its own words.
 #   FM_SUP_WATCHER_FRESH  true/false - a watcher beacon within the grace window
 #   FM_SUP_BEACON_DESC    human-readable beacon age, for banners ("never" if absent)
 #   FM_SUP_QUEUE_PENDING  true/false - state/.wake-queue has unread records
@@ -48,6 +66,7 @@ fm_supervision_status() {
   local state=$1 grace=${2:-${FM_GUARD_GRACE:-300}} meta source check id beat m age
   FM_SUP_IN_FLIGHT=0
   FM_SUP_NEEDED=false
+  FM_SUP_WATCHED_WORK=false
   FM_SUP_WATCHER_FRESH=false
   FM_SUP_BEACON_DESC=never
   FM_SUP_QUEUE_PENDING=false
@@ -72,10 +91,14 @@ fm_supervision_status() {
     [ -e "$state/$id.check-trust" ] || continue
     FM_SUP_CHECKS=$((FM_SUP_CHECKS + 1))
   done
+  [ -s "$state/.wake-queue" ] && FM_SUP_QUEUE_PENDING=true
   if [ "$FM_SUP_IN_FLIGHT" -gt 0 ] \
     || [ -f "$state/x-watch.check.sh" ] \
     || [ "$FM_SUP_SOURCES" -gt 0 ] \
     || [ "$FM_SUP_CHECKS" -gt 0 ]; then
+    FM_SUP_WATCHED_WORK=true
+  fi
+  if [ "$FM_SUP_WATCHED_WORK" = true ] || [ "$FM_SUP_QUEUE_PENDING" = true ]; then
     FM_SUP_NEEDED=true
   fi
 
@@ -92,8 +115,6 @@ fm_supervision_status() {
     fi
   fi
 
-  # shellcheck disable=SC2034 # Read by callers (fm-guard.sh) after sourcing.
-  [ -s "$state/.wake-queue" ] && FM_SUP_QUEUE_PENDING=true
   return 0
 }
 

@@ -1601,13 +1601,25 @@ if [ "$RELAUNCH" -eq 0 ]; then
   # tests.
   #
   # Refusing rather than waiting is the fail-closed direction: the home may be
-  # moments from removal, so there is nothing worth waiting for.
+  # moments from removal, so there is nothing worth waiting for. Callers that
+  # legitimately queue up several fresh spawns in one home take turns BEFORE
+  # reaching here instead (bin/fm-secondmate-liveness-lib.sh's respawn lock),
+  # which is what keeps this refusal about a teardown-shaped conflict.
   SPAWN_TASK_SET_LOCK=$(fm_task_set_lock_path "$STATE") || {
     echo "error: could not resolve the task-set lock for $STATE" >&2
     exit 1
   }
   if ! fm_lock_try_acquire "$SPAWN_TASK_SET_LOCK"; then
-    echo "error: this home's task set is locked by another operation (a forced teardown is enumerating or removing its tasks); refusing to create task $ID rather than racing it" >&2
+    # Name the holder, not a guess at what it is doing. The lock records only a
+    # pid, and both holders are legitimate: a forced teardown of this home, and
+    # another task being created in it. Asserting a teardown sent recovery
+    # chasing a teardown that was never running.
+    spawn_task_set_holder="another operation"
+    case "${FM_LOCK_HELD_PID:-}" in
+      ''|*[!0-9]*) ;;
+      *) spawn_task_set_holder="the operation running as pid $FM_LOCK_HELD_PID" ;;
+    esac
+    echo "error: this home's task set is locked by $spawn_task_set_holder, which is either a forced teardown enumerating or removing its tasks or another task being created here; refusing to create task $ID rather than racing it" >&2
     exit 1
   fi
   SPAWN_TASK_SET_LOCK_HELD=1

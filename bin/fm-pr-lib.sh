@@ -358,8 +358,21 @@ fm_pr_regular_destination_on_device_or_absent() {
   [ ! -e "$path" ] || [ "$(fm_pr_file_device "$path")" = "$device" ]
 }
 
+# Only the identity-bearing fields decide this record's validity, wherever they
+# sit in the file. The identity is the ONE pr= line's URL, so a second pr= is
+# refused and every pr_head= bound to it must be a valid head; any other line is
+# some other owner's field and says nothing about this identity.
+#
+# Rejecting an unrecognised line AFTER pr= instead made the whole record's byte
+# ORDER load-bearing, which no meta writer can be expected to preserve: it had
+# already forced an x_* exception for bin/fm-x-lib.sh's link fields and an
+# explicit ordering constraint on bin/fm-remote-secondmate-relaunch.sh, and it
+# still broke merge polling whenever bin/fm-spawn.sh's relaunch appended its
+# control_relaunch_tx transaction field last. Tolerating those lines also heals
+# a record that already carries one, which clearing the field at the writer
+# could not do.
 fm_pr_metadata_identity_parse() {
-  local file=$1 line value pr_count=0 seen_pr=0 post_pr_invalid=0
+  local file=$1 line value pr_count=0 seen_pr=0 head_invalid=0
   FM_PR_META_PROVIDER=
   FM_PR_META_URL=
   FM_PR_META_HOST=
@@ -385,18 +398,13 @@ fm_pr_metadata_identity_parse() {
       pr_head=*)
         if [ "$seen_pr" -eq 1 ]; then
           value=${line#pr_head=}
-          fm_pr_head_valid "$value" || post_pr_invalid=1
+          fm_pr_head_valid "$value" || head_invalid=1
         fi
-        ;;
-      x_request=*|x_request_ts=*|x_followups=*|x_platform=*|x_reply_max_chars=*)
-        ;;
-      *)
-        [ "$seen_pr" -eq 0 ] || post_pr_invalid=1
         ;;
     esac
   done < "$file"
   [ "$pr_count" -eq 1 ] || return 1
-  [ "$post_pr_invalid" -eq 0 ] || return 1
+  [ "$head_invalid" -eq 0 ] || return 1
   [ -n "$FM_PR_META_URL" ]
 }
 

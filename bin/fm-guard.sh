@@ -179,7 +179,12 @@ fm_supervision_status "$STATE" "$GRACE"
 in_flight=$FM_SUP_IN_FLIGHT
 sources=$FM_SUP_SOURCES
 checks=$FM_SUP_CHECKS
-needed=$FM_SUP_NEEDED
+# The banner below is the "work is riding on a watcher that is not there" alarm,
+# so this guard gates on the narrower watched-work fact. A pending queue row also
+# needs supervision (fm-supervision-lib.sh owns why), but this guard runs FROM
+# bin/fm-wake-drain.sh while those very rows are being handled, where a pending
+# row is the normal state - and the queued-wake warning below already reports it.
+needed=$FM_SUP_WATCHED_WORK
 beacon_desc=$FM_SUP_BEACON_DESC
 fm_watcher_supervision_verdict "$STATE" "$WATCH" "$GRACE" "$FM_HOME" "$FM_ROOT"
 watcher_healthy=$FM_WATCHER_VERDICT_OK

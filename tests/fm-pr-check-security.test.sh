@@ -287,8 +287,9 @@ write_task_meta() {
     "mode=no-mistakes"
 }
 
-# Extra "field=value" arguments are written before pr=, because
-# fm_pr_metadata_identity_parse rejects an unrecognised line after it.
+# Extra "field=value" arguments are written before pr=, matching the order
+# bin/fm-pr-check.sh itself produces; fm_pr_metadata_identity_parse reads the
+# identity wherever those lines sit.
 write_poll_meta() {
   local state=$1 id=$2 url=$3 case_dir
   case_dir=$(cd "$state/../.." && pwd)

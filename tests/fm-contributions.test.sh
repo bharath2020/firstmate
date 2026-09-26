@@ -565,6 +565,9 @@ case "$fault:$*" in
   fail:'api repos/o/r/pulls/8/reviews?'*) printf 'HTTP 502\n' >&2; exit 1 ;;
   down:*) printf 'HTTP 502\n' >&2; exit 1 ;;
   hang:'api repos/o/r/pulls/8') sleep 4 ;;
+  # An early parallel read that overruns its own five-second per-call cap while
+  # the poll still holds most of its budget: the reporter's observed case.
+  slow-statuses:'api repos/o/r/commits/'*'/statuses?'*) sleep 8 ;;
   head:'pr view '*) printf '{"headRefOid":"%s","reviewDecision":"APPROVED"}\n' "$(printf 'b%.0s' $(seq 40))"; exit 0 ;;
 esac
 exec "$(dirname "$0")/gh-fixture" "$@"
@@ -617,6 +620,59 @@ test_genuine_failure_near_deadline_is_unavailable() {
     and .records[0].error == "forge observation unavailable or changed during read"' \
     "$home/data/delivery/contributions.json" >/dev/null || fail 'a genuine forge failure left no error evidence'
   pass 'a genuine forge failure inside the budget still records the error and wakes'
+}
+
+# A read killed by its own five-second per-call cap measured nothing about the
+# forge, so it is unmeasured exactly like a read killed at the budget deadline.
+# Recording it as a forge error made spiky GitHub latency print "observation
+# unavailable" and queue a supervisor wake off a PR that was perfectly healthy.
+test_unbounded_call_timeout_is_unmeasured() {
+  local home out
+  home=$(new_home slow-call)
+  forge_home "$home"
+  wrap_forge "$home"
+  mutate_record "$home" delivery '.records[0].checked_at="2026-09-15T08:00:00Z"'
+  cp "$home/data/delivery/contributions.json" "$home/prior.json"
+  printf 'slow-statuses\n' > "$home/forge/fault"
+  # The full default budget, and a real clock: the cap that fires is the
+  # per-call one, with far more than five seconds of budget still unspent.
+  out=$(with_home "$home" env FM_CONTRIBUTIONS_BUDGET=20 "$ROOT/bin/fm-contributions.sh" poll) \
+    || fail 'poll failed when one read overran its per-call cap'
+  [ -z "$out" ] || fail "a slow read was reported as an unavailable observation: $out"
+  cmp -s "$home/prior.json" "$home/data/delivery/contributions.json" \
+    || fail "a slow read rewrote the prior record: $(cat "$home/data/delivery/contributions.json")"
+  [ ! -s "$home/state/.wake-queue" ] || fail 'a slow read enqueued a supervisor wake'
+  pass 'a read killed by its own per-call cap is unmeasured, not a forge error'
+}
+
+# The same wave must still report a genuine failure: a 502 beside a capped read
+# is a real forge failure and keeps its error evidence and its wake.
+test_failure_beside_slow_call_still_unavailable() {
+  local home out
+  home=$(new_home slow-and-failed)
+  forge_home "$home"
+  wrap_forge "$home"
+  mutate_record "$home" delivery '.records[0].checked_at="2026-09-15T08:00:00Z"'
+  # Both faults in one wave: reviews returns 502 while statuses overruns its cap.
+  cat > "$home/fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+set -eu
+printf '%s\n' "$*" >> "$FORGE/calls"
+case "$*" in
+  'api repos/o/r/commits/'*'/statuses?'*) sleep 8 ;;
+  'api repos/o/r/pulls/8/reviews?'*) printf 'HTTP 502\n' >&2; exit 1 ;;
+esac
+exec "$(dirname "$0")/gh-fixture" "$@"
+SH
+  chmod +x "$home/fakebin/gh"
+  out=$(with_home "$home" env FM_CONTRIBUTIONS_BUDGET=20 "$ROOT/bin/fm-contributions.sh" poll) \
+    || fail 'poll failed on a genuine failure beside a capped read'
+  [ "$out" = 'contributions: observation unavailable for https://github.com/o/r/pull/8' ] \
+    || fail "a genuine forge failure was hidden by a capped read in the same wave: $out"
+  jq -e --arg now "$NOW" '.records[0].error == "forge observation unavailable or changed during read"' \
+    "$home/data/delivery/contributions.json" >/dev/null \
+    || fail 'a genuine forge failure beside a capped read left no error evidence'
+  pass 'a genuine forge failure beside a capped read is still unavailable'
 }
 
 test_shared_url_observed_once() {
@@ -829,7 +885,7 @@ test_late_owner_keeps_failure_episode_suppressed() {
 }
 
 failures=0
-for test_name in test_actor_coverage test_stale_verdict test_unchecked_is_not_silence test_newest_check_has_no_verdict test_comment_wake test_review_wake test_inline_wake test_ready_issue_wake test_fresh_issue_requires_maintainer test_missing_lane_remains_missing test_partial_freshness_keeps_measured_rows test_malformed_record_cannot_prove_silence test_issue_timeline_and_exact_ack test_verdict_retains_judged_head test_observed_replacement_refreshes_verdict test_unobserved_head_leaves_verdict_unknown test_away_yolo_is_fleet_work test_away_yolo_cross_home_is_fleet_work test_retired_and_unsupported_coverage test_unsupported_forge_is_not_fleet_work test_held_unsupported_forge_is_not_captain_work test_shared_contribution_signal_wakes_once test_watcher_keeps_diagnostics_separate_from_contribution_wakes test_expired_child_unsupported_forge_stays_unmeasured test_watcher_surfaces_new_contribution_once test_home_summary_coverage test_unreadable_pending_is_not_empty test_budget_refusal_between_calls test_budget_bounded_call_timeout test_genuine_failure_near_deadline_is_unavailable test_shared_url_observed_once test_terminal_contribution_settles test_late_owner_inherits_terminal_observation test_done_task_open_pr_still_observed test_reservation_defers_later_url_when_fifteen_seconds_do_not_remain test_three_second_pr_reads_complete_fresh_in_one_cycle test_unavailable_forge_records_error_and_wakes_once_per_episode test_late_owner_keeps_failure_episode_suppressed; do
+for test_name in test_actor_coverage test_stale_verdict test_unchecked_is_not_silence test_newest_check_has_no_verdict test_comment_wake test_review_wake test_inline_wake test_ready_issue_wake test_fresh_issue_requires_maintainer test_missing_lane_remains_missing test_partial_freshness_keeps_measured_rows test_malformed_record_cannot_prove_silence test_issue_timeline_and_exact_ack test_verdict_retains_judged_head test_observed_replacement_refreshes_verdict test_unobserved_head_leaves_verdict_unknown test_away_yolo_is_fleet_work test_away_yolo_cross_home_is_fleet_work test_retired_and_unsupported_coverage test_unsupported_forge_is_not_fleet_work test_held_unsupported_forge_is_not_captain_work test_shared_contribution_signal_wakes_once test_watcher_keeps_diagnostics_separate_from_contribution_wakes test_expired_child_unsupported_forge_stays_unmeasured test_watcher_surfaces_new_contribution_once test_home_summary_coverage test_unreadable_pending_is_not_empty test_budget_refusal_between_calls test_budget_bounded_call_timeout test_genuine_failure_near_deadline_is_unavailable test_unbounded_call_timeout_is_unmeasured test_failure_beside_slow_call_still_unavailable test_shared_url_observed_once test_terminal_contribution_settles test_late_owner_inherits_terminal_observation test_done_task_open_pr_still_observed test_reservation_defers_later_url_when_fifteen_seconds_do_not_remain test_three_second_pr_reads_complete_fresh_in_one_cycle test_unavailable_forge_records_error_and_wakes_once_per_episode test_late_owner_keeps_failure_episode_suppressed; do
   ( "$test_name" ) || failures=$((failures + 1))
 done
 [ "$failures" -eq 0 ] || fail "$failures contribution regressions"

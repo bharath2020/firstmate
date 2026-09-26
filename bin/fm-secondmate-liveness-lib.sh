@@ -44,6 +44,9 @@
 # Concurrency: fm_secondmate_liveness_lock serializes probe+kill+relaunch per
 # task across the bootstrap sweep and the watcher tick, so a concurrent
 # relaunch can never be observed mid-flight as a dead endpoint and killed.
+# fm_secondmate_respawn_lock adds the home-wide half of that: respawns of
+# DIFFERENT mates in one home take turns, because each one is a fresh spawn
+# competing for the same task-set lock (its own header owns why).
 # The attempt ledger (.secondmate-relaunch-<id>, one line per attempt plus one
 # per outcome) is both the durable relaunch record and the input to the
 # watcher's relaunch bound; teardown removes it.
@@ -79,6 +82,48 @@ fm_secondmate_liveness_lock() {  # <id>
 fm_secondmate_liveness_unlock() {  # <id>
   fm_sm_live_require_locks || return 0
   fm_lock_release "$STATE/.secondmate-liveness-$1.lock" 2>/dev/null || true
+}
+
+# Home-wide respawn serialization, one lock for every driver of this library.
+# The per-task liveness lock above cannot cover this: a respawn is a FRESH
+# bin/fm-spawn.sh, which takes THIS HOME's task-set lock for its whole launch,
+# so two respawns of DIFFERENT mates in one home still collide there. That lock
+# refuses rather than waits, by design, because its other holder is a forced
+# teardown of the home. Taking turns here keeps that refusal meaningful while
+# removing the only contention the fleet creates against itself.
+#
+# The wait is bounded so no driver can hang, and what it waits FOR is exactly one
+# sibling relaunch, so the sweep's bound is one relaunch's own budget
+# (FM_SECONDMATE_LIVENESS_TIMEOUT's 120s default). The session-start sweep runs
+# inside bin/fm-startup-network.sh's own stage budget, which can cut a long queue
+# of respawns short; that is reported rather than silent, and the watcher's
+# liveness tick then recovers whatever the sweep did not reach. A caller that
+# passed a spawn timeout IS that tick: it must not stall its liveness beacon and
+# re-runs on its own cadence, so it waits only for a release already under way.
+FM_SECONDMATE_RESPAWN_WAIT_SWEEP=120
+FM_SECONDMATE_RESPAWN_WAIT_TICK=10
+
+fm_sm_live_respawn_wait() {  # [spawn-timeout]
+  local configured=${FM_SECONDMATE_RESPAWN_WAIT:-}
+  case "$configured" in
+    ''|*[!0-9]*|0) ;;
+    *) printf '%s' "$configured"; return 0 ;;
+  esac
+  if [ -n "${1:-}" ]; then
+    printf '%s' "$FM_SECONDMATE_RESPAWN_WAIT_TICK"
+  else
+    printf '%s' "$FM_SECONDMATE_RESPAWN_WAIT_SWEEP"
+  fi
+}
+
+fm_secondmate_respawn_lock() {  # [spawn-timeout]
+  fm_sm_live_require_locks || return 1
+  fm_lock_acquire_wait_max "$STATE/.secondmate-respawn.lock" "$(fm_sm_live_respawn_wait "${1:-}")"
+}
+
+fm_secondmate_respawn_unlock() {
+  fm_sm_live_require_locks || return 0
+  fm_lock_release "$STATE/.secondmate-respawn.lock" 2>/dev/null || true
 }
 
 fm_sm_live_first_line() {
@@ -267,13 +312,25 @@ fm_secondmate_liveness_probe() {  # <meta> <id> <full|poll>
 fm_secondmate_liveness_relaunch() {  # <meta> <id> [timeout-secs]
   local meta=$1 id=$2 timeout=${3:-}
   FM_SM_LIVE_OUT='' FM_SM_LIVE_RC=0
+  # Take the home-wide respawn turn BEFORE the ledger attempt row and the kill,
+  # so a mate that only lost the turn has nothing recorded against it: an
+  # attempt row here would count toward the watcher's relaunch bound and could
+  # park a mate that was never actually relaunched.
+  if ! fm_secondmate_respawn_lock "$timeout"; then
+    FM_SM_LIVE_STATUS=skipped
+    FM_SM_LIVE_REASON="another secondmate respawn in this home still holds the respawn turn; endpoint left $FM_SM_LIVE_STATE"
+    FM_SM_LIVE_RC=1
+    return 1
+  fi
   if ! fm_secondmate_liveness_recent_attempts "$id" 0 >/dev/null; then
+    fm_secondmate_respawn_unlock
     FM_SM_LIVE_STATUS=skipped
     FM_SM_LIVE_REASON="relaunch ledger $STATE/.secondmate-relaunch-$id is unreadable; endpoint left $FM_SM_LIVE_STATE"
     FM_SM_LIVE_RC=1
     return 1
   fi
   if ! fm_secondmate_liveness_ledger_add "$id" attempt; then
+    fm_secondmate_respawn_unlock
     FM_SM_LIVE_STATUS=skipped
     FM_SM_LIVE_REASON="relaunch ledger $STATE/.secondmate-relaunch-$id is unwritable; endpoint left $FM_SM_LIVE_STATE"
     FM_SM_LIVE_RC=1
@@ -301,5 +358,6 @@ fm_secondmate_liveness_relaunch() {  # <meta> <id> [timeout-secs]
   else
     fm_secondmate_liveness_ledger_add "$id" failed || true
   fi
+  fm_secondmate_respawn_unlock
   return "$rc"
 }

@@ -495,6 +495,39 @@ test_actionable_close_with_live_successor_rewakes_once() {
   pass "auto-arm: actionable close survives a healthy successor without duplicate delivery"
 }
 
+# The ORDINARY close: this hook's own foreground arm started the watcher, and
+# that cycle ended with a wake. Every real cycle in a live secondmate home is
+# this shape, not the attached one, so the successor cannot be pinned only by
+# the attached case: without a successor here the home runs uncovered from the
+# close until the next turn end, and an idle secondmate has no next turn.
+test_started_cycle_actionable_close_starts_handling_successor() {
+  local dir out status foreground predecessor successor i
+  dir=$(make_primary_dir "$TMP_ROOT/started-successor")
+  : > "$dir/state/task.meta"
+  write_arm_fixture "$dir" actionable
+  : > "$dir/state/successor-park"
+  out=$(run_autoarm "$dir" 2>/dev/null); status=$?
+  expect_code 2 "$status" "an ordinary started cycle's wake must rewake"
+  [ -s "$dir/state/successor-ran" ] \
+    || fail "an ordinary started cycle's actionable close started no handling successor"
+  [ "$(wc -l < "$dir/state/successor-ran" | tr -d ' ')" -eq 1 ] \
+    || fail "exactly one handling successor must start per actionable close: $(cat "$dir/state/successor-ran")"
+  foreground=$(cat "$dir/state/arm-ran")
+  predecessor=$(sed -n 's/^arm=[0-9]* predecessor=\([0-9]*\)$/\1/p' "$dir/state/successor-ran")
+  [ "$predecessor" = "$foreground" ] \
+    || fail "the successor must name the closed foreground arm $foreground as its predecessor, got: $(cat "$dir/state/successor-ran")"
+  successor=$(sed -n 's/^arm=\([0-9]*\) .*$/\1/p' "$dir/state/successor-ran")
+  kill -0 "$successor" 2>/dev/null || fail "the handling successor did not outlive the hook's rewake"
+  rm -f "$dir/state/successor-park"
+  i=0
+  while kill -0 "$successor" 2>/dev/null && [ "$i" -lt 100 ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
+  assert_not_contains "$out" "did not confirm" "a confirmed successor adds nothing to the rewake"
+  pass "auto-arm: an ordinary started cycle's actionable close starts a handling successor too"
+}
+
 # An arm that attached to a peer cycle returns when that cycle ends with the wake
 # the peer delivered. Pi, omp, and OpenCode start the next arm before notifying
 # the model; the hook must do the same, naming the closed arm as the successor's
@@ -1560,6 +1593,7 @@ test_resolves_outermost_claude_pid_in_nested_bgspare_chain
 test_inert_when_fleet_idle
 test_actionable_close_rewakes_with_reason
 test_actionable_close_with_live_successor_rewakes_once
+test_started_cycle_actionable_close_starts_handling_successor
 test_attached_cycle_end_starts_handling_successor
 test_unconfirmed_handling_successor_still_rewakes
 test_failed_close_rewakes_with_failure_banner
