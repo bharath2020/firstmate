@@ -616,8 +616,8 @@ test_watched_work_excludes_a_pending_wake_row() {
   # shellcheck source=/dev/null
   ( . "$ROOT/bin/fm-supervision-lib.sh"
     fm_supervision_status "$state" 300
-    [ "$FM_SUP_WATCHED_WORK" = true ] || exit 5 )
-  [ $? -eq 0 ] || fail "an in-flight task was not counted as work riding on a watcher"
+    [ "$FM_SUP_WATCHED_WORK" = true ] || exit 5 ) ||
+    fail "an in-flight task was not counted as work riding on a watcher"
   pass "fm-supervision-lib: a pending wake row needs supervision without counting as watched work"
 }
 
