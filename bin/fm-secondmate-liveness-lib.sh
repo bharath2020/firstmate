@@ -92,33 +92,25 @@ fm_secondmate_liveness_unlock() {  # <id>
 # teardown of the home. Taking turns here keeps that refusal meaningful while
 # removing the only contention the fleet creates against itself.
 #
-# The wait is bounded so no driver can hang, and what it waits FOR is exactly one
-# sibling relaunch, so the sweep's bound is one relaunch's own budget
-# (FM_SECONDMATE_LIVENESS_TIMEOUT's 120s default). The session-start sweep runs
-# inside bin/fm-startup-network.sh's own stage budget, which can cut a long queue
-# of respawns short; that is reported rather than silent, and the watcher's
-# liveness tick then recovers whatever the sweep did not reach. A caller that
+# The session-start sweep probes every mate in parallel, but its respawns queue
+# here back-to-back: a sweep worker (no spawn timeout) waits for the turn with
+# no deadline of its own, so every mate one sweep classifies relaunchable is
+# relaunched in that sweep, however many siblings go first and however long
+# their spawns take. The sweep's only bound is bin/fm-startup-network.sh's
+# stage budget, which terminates the whole bootstrap process group; a queue it
+# cuts short leaves the rest to the watcher's liveness tick. A caller that
 # passed a spawn timeout IS that tick: it must not stall its liveness beacon and
-# re-runs on its own cadence, so it waits only for a release already under way.
-FM_SECONDMATE_RESPAWN_WAIT_SWEEP=120
+# re-runs on its own cadence, so it waits only briefly for a turn already under
+# way and reports the mate skipped otherwise.
 FM_SECONDMATE_RESPAWN_WAIT_TICK=10
-
-fm_sm_live_respawn_wait() {  # [spawn-timeout]
-  local configured=${FM_SECONDMATE_RESPAWN_WAIT:-}
-  case "$configured" in
-    ''|*[!0-9]*|0) ;;
-    *) printf '%s' "$configured"; return 0 ;;
-  esac
-  if [ -n "${1:-}" ]; then
-    printf '%s' "$FM_SECONDMATE_RESPAWN_WAIT_TICK"
-  else
-    printf '%s' "$FM_SECONDMATE_RESPAWN_WAIT_SWEEP"
-  fi
-}
 
 fm_secondmate_respawn_lock() {  # [spawn-timeout]
   fm_sm_live_require_locks || return 1
-  fm_lock_acquire_wait_max "$STATE/.secondmate-respawn.lock" "$(fm_sm_live_respawn_wait "${1:-}")"
+  if [ -n "${1:-}" ]; then
+    fm_lock_acquire_wait_max "$STATE/.secondmate-respawn.lock" "$FM_SECONDMATE_RESPAWN_WAIT_TICK"
+  else
+    fm_lock_acquire_wait "$STATE/.secondmate-respawn.lock"
+  fi
 }
 
 fm_secondmate_respawn_unlock() {

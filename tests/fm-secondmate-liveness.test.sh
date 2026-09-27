@@ -299,6 +299,7 @@ case "${1:-}" in
     printf '%s\n' "$*" >> "${FM_TMUX_CALL_LOG:?}"
     [ "${1:-}" = kill-window ] && : > "${FM_TMUX_CALL_LOG}.killed"
     [ "${FM_TEST_FAIL_NEW_WINDOW:-0}" = 1 ] && [ "${1:-}" = new-window ] && exit 1
+    [ "${1:-}" = new-window ] && sleep "${FM_TEST_NEW_WINDOW_DELAY:-0}"
     [ "${1:-}" = new-window ] && rm -f "${FM_TMUX_CALL_LOG}.killed"
     exit 0
     ;;
@@ -380,23 +381,27 @@ test_sweep_respawns_confirmed_dead_secondmate() {
 # FRESH bin/fm-spawn.sh in one home, so each one takes that home's task-set
 # lock. Only one respawn can hold it at a time, so the sweep must make them take
 # turns: relaunching one mate and reporting the rest failed left dead mates down
-# until a later session, one recovered per run.
+# until a later session, one recovered per run. Five mates matches the reported
+# incident, and a spawn that takes real time must still queue for its turn
+# rather than be reported skipped behind siblings that went first.
 test_sweep_respawns_every_dead_secondmate_in_one_pass() {
   local w fb tmuxfb log out id
   w=$(new_world sweep-dead-many)
-  add_sm_home "$w" sm1 firstmate:fm-sm1
-  add_sm_home "$w" sm2 firstmate:fm-sm2
-  add_sm_home "$w" sm3 firstmate:fm-sm3
+  for id in sm1 sm2 sm3 sm4 sm5; do
+    add_sm_home "$w" "$id" "firstmate:fm-$id"
+  done
   fb=$(make_toolchain "$w"); tmuxfb=$(make_liveness_tmux "$w")
   log="$w/calls.log"; : > "$log"
 
-  out=$(run_bootstrap "$tmuxfb:$fb" "$w/home" zsh "$log")
+  out=$(run_bootstrap "$tmuxfb:$fb" "$w/home" zsh "$log" FM_TEST_NEW_WINDOW_DELAY=1)
 
   assert_not_contains "$out" "respawn failed" \
     "no dead mate may fail its respawn just because a sibling respawn held this home's task-set lock"
   assert_not_contains "$out" "task set is locked" \
     "a sibling respawn is not a forced teardown and must never be reported as one"
-  for id in sm1 sm2 sm3; do
+  for id in sm1 sm2 sm3 sm4 sm5; do
+    assert_not_contains "$out" "SECONDMATE_LIVENESS: secondmate $id: skipped" \
+      "dead mate $id may not be reported skipped because siblings took their respawn turn first"
     assert_grep 'relaunched' "$w/home/state/.secondmate-relaunch-$id" \
       "dead mate $id was not relaunched in this sweep: $out"
   done
