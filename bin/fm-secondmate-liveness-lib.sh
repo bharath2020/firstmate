@@ -300,16 +300,19 @@ fm_secondmate_liveness_probe() {  # <meta> <id> <full|poll>
 # FM_SM_LIVE_OUT and the status in FM_SM_LIVE_RC. When the ledger cannot be
 # read or the attempt row cannot be appended, nothing is killed or spawned: the verdict becomes
 # FM_SM_LIVE_STATUS=skipped with FM_SM_LIVE_REASON set and this returns 1.
+# Losing the home-wide respawn turn is the same skipped verdict plus
+# FM_SM_LIVE_DEFERRED=1: nothing was attempted, so a caller with its own retry
+# cadence may leave the mate for its next pass instead of treating it as an error.
 # Caller holds the liveness lock and owns reporting.
 fm_secondmate_liveness_relaunch() {  # <meta> <id> [timeout-secs]
   local meta=$1 id=$2 timeout=${3:-}
-  FM_SM_LIVE_OUT='' FM_SM_LIVE_RC=0
+  FM_SM_LIVE_OUT='' FM_SM_LIVE_RC=0 FM_SM_LIVE_DEFERRED=0
   # Take the home-wide respawn turn BEFORE the ledger attempt row and the kill,
   # so a mate that only lost the turn has nothing recorded against it: an
   # attempt row here would count toward the watcher's relaunch bound and could
   # park a mate that was never actually relaunched.
   if ! fm_secondmate_respawn_lock "$timeout"; then
-    FM_SM_LIVE_STATUS=skipped
+    FM_SM_LIVE_STATUS=skipped FM_SM_LIVE_DEFERRED=1
     FM_SM_LIVE_REASON="another secondmate respawn in this home still holds the respawn turn; endpoint left $FM_SM_LIVE_STATE"
     FM_SM_LIVE_RC=1
     return 1

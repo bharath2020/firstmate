@@ -3303,6 +3303,45 @@ test_secondmate_liveness_tick_skips_mate_whose_lock_is_held() {
   pass "watch liveness: a mate mid-episode under the shared liveness lock is skipped entirely"
 }
 
+# The home-wide respawn turn is held by a sibling relaunch (for example a slow
+# session-start sweep spawn) for longer than the tick's short wait. Losing that
+# turn is ordinary contention: the tick must neither fail nor exit the cycle,
+# must not touch or ledger the mate, and must recover it once the turn frees.
+test_secondmate_liveness_tick_defers_mate_while_respawn_turn_is_held() {
+  local dir state pid holder i=0
+  dir=$(make_secondmate_liveness_case liveness-respawn-turn)
+  state="$dir/state"
+
+  ( STATE="$state" bash -c '. "$1" && fm_lock_acquire_wait "$2" && sleep 60' \
+      _ "$ROOT/bin/fm-wake-lib.sh" "$state/.secondmate-respawn.lock" ) &
+  holder=$!
+  while [ ! -d "$state/.secondmate-respawn.lock" ] && [ "$i" -lt 100 ]; do
+    sleep 0.05
+    i=$((i + 1))
+  done
+  [ -d "$state/.secondmate-respawn.lock" ] || fail "the fixture never acquired the respawn turn"
+
+  run_liveness_leg "$dir" respawn-turn FM_FAKE_TMUX_CURRENT_COMMAND=zsh; pid=$LIVENESS_PID
+  sleep 13
+  if ! is_live_non_zombie "$pid"; then
+    kill "$holder" 2>/dev/null || true
+    fail "the watcher exited while a sibling held the respawn turn: $(cat "$dir/watch-respawn-turn.out" "$dir/watch-respawn-turn.err")"
+  fi
+  ! grep -F 'secondmate liveness check failed' "$dir/watch-respawn-turn.err" >/dev/null \
+    || fail "losing the respawn turn was reported as a liveness failure: $(cat "$dir/watch-respawn-turn.err")"
+  ! grep -F 'new-window' "$dir/tmux.log" >/dev/null 2>&1 \
+    || fail "a mate was relaunched while a sibling held the respawn turn: $(cat "$dir/tmux.log")"
+  [ ! -s "$state/.secondmate-relaunch-sm1" ] \
+    || fail "a deferred mate gained ledger rows: $(cat "$state/.secondmate-relaunch-sm1")"
+
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+  wait_for_exit "$pid" 400 || fail "the deferred mate was not recovered on a later tick"
+  grep -F 'check: secondmate sm1 auto-relaunched' "$dir/watch-respawn-turn.out" >/dev/null \
+    || fail "the deferred mate's later relaunch did not wake: $(cat "$dir/watch-respawn-turn.out" "$dir/watch-respawn-turn.err")"
+  pass "watch liveness: a held respawn turn defers the mate to a later tick without failing the watcher"
+}
+
 test_secondmate_liveness_tick_preserves_unreachable_remote() {
   local dir state
   dir=$(make_secondmate_liveness_case liveness-remote-down)
@@ -3410,4 +3449,5 @@ test_secondmate_liveness_tick_fails_closed_on_ledger_errors
 test_secondmate_liveness_tick_error_keeps_scanning_and_wakes
 test_secondmate_liveness_tick_unqueued_outcome_is_an_error_not_a_wake
 test_secondmate_liveness_tick_skips_mate_whose_lock_is_held
+test_secondmate_liveness_tick_defers_mate_while_respawn_turn_is_held
 test_secondmate_liveness_tick_preserves_unreachable_remote
