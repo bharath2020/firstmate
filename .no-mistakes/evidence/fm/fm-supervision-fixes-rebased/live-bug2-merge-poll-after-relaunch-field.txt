@@ -1,0 +1,14 @@
+### state/labpr.meta after appending the relaunch transaction field (as bin/fm-spawn.sh writes it, last)
+kind=ship
+mode=no-mistakes
+project=firstmate
+worktree=/Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG
+harness=claude
+pr=https://github.com/kunchenguid/firstmate/pull/7656
+pr_head=2df83794de885e6d6db057041a21500720a4bcd3
+control_relaunch_tx=4242.20261023T061842Z.32605
+
+### $ FM_HOME=$LAB bin/fm-watch.sh   (one cycle, real gh against merged PR #7656)
+check: /private/var/folders/1c/wkzr1t1945v0tg_882wwqshh0000gn/T/fm-lab.9xC8r0/state/labpr.check.sh: merged
+watcher exit=0
+1792736326	1	check	merged-labpr-https://github.com/kunchenguid/firstmate/pull/7656	check: merge landed: labpr https://github.com/kunchenguid/firstmate/pull/7656 external

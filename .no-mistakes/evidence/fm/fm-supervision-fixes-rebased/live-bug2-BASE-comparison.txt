@@ -1,0 +1,15 @@
+### BASE e930d960 code: same meta with trailing control_relaunch_tx
+kind=ship
+mode=no-mistakes
+project=firstmate
+worktree=/Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG
+harness=claude
+pr=https://github.com/kunchenguid/firstmate/pull/7656
+pr_head=2df83794de885e6d6db057041a21500720a4bcd3
+control_relaunch_tx=4242.20261023T061904Z.13881
+
+### $ FM_HOME=$LAB <base>/bin/fm-watch.sh
+check: rejected unauthenticated state checks: /private/var/folders/1c/wkzr1t1945v0tg_882wwqshh0000gn/T/fm-lab.9xC8r0/state/labpr.check.sh
+watcher exit=0
+queue:
+1792736345	1	check	unauthenticated-state-checks	check: rejected unauthenticated state checks: /private/var/folders/1c/wkzr1t1945v0tg_882wwqshh0000gn/T/fm-lab.9xC8r0/state/labpr.check.sh

@@ -1,0 +1,50 @@
+
+⏺ Stop hook feedback
+
+⏺ Captain, shipshape.
+
+✻ Worked for 2s · done 11:10 PM
+
+⏺ Stop hook feedback
+
+⏺ Captain, the end-of-turn check stopped the turn twice in a row without giving any reason. There's nothing in it for me to act on, and no work is running from this session. If it keeps happening, the
+  check itself probably needs a look in your Claude Code settings. Running /hooks will show you what's set up to run at turn end.
+
+✻ Brewed for 3s · done 11:10 PM
+
+⏺ Stop hook feedback
+
+⏺ Captain, the end-of-turn check stopped the turn again with no message. It's the same empty block as before, and there's still nothing for me to act on. Running /hooks will show what's attached to
+  turn end if you want to look at it.
+
+✻ Baked for 3s · done 11:10 PM
+
+⏺ Stop hook feedback
+
+⏺ Captain, the end-of-turn check is still blocking with no reason, which makes four empty stops in a row. I'm stopping here instead of answering each one. Running /hooks will show what's attached to
+  turn end.
+
+✻ Churned for 2s · done 11:10 PM
+
+⏺ Stop hook feedback
+
+⏺ Captain, it's the same empty block again, the fifth in a row. I'm leaving it alone until you weigh in.
+
+✻ Sautéed for 3s · done 11:10 PM
+
+⏺ Stop hook feedback
+
+⏺ Captain, it's still the same empty block. I'm still waiting on you.
+
+✻ Crunched for 2s · done 11:10 PM
+
+⏺ Stop hook feedback
+
+  Listed 1 directory, ran 1 shell command
+  ⎿  Interrupted · What should Claude do instead?
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG | b1faef3d | Opus 5.5 | 6% ctx used
+  ⏵⏵ auto mode on (shift+tab to cycle)

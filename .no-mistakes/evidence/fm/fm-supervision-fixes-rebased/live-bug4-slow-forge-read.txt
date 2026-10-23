@@ -1,0 +1,14 @@
+### 1) baseline poll, real gh (PR #7669 owned by lab task labpr)
+poll exit=0 elapsed=3s
+queue: 
+{"url":"https://github.com/kunchenguid/firstmate/pull/7656","checked_at":"2026-10-23T06:18:43Z","error":null}
+{"url":"https://github.com/kunchenguid/firstmate/pull/7634","checked_at":"2026-10-23T06:19:18Z","error":null}
+{"url":"https://github.com/kunchenguid/firstmate/pull/7669","checked_at":"2026-10-23T06:19:43Z","error":null}
+
+### 2) same poll, gh shim makes ONLY the commit-statuses read overrun its 5s per-call cap (early in the 20s budget)
+poll exit=0 elapsed=7s
+23:19:50 shim: delaying statuses read 8s
+queue after slow-read poll: []
+{"url":"https://github.com/kunchenguid/firstmate/pull/7656","checked_at":"2026-10-23T06:18:43Z","error":null}
+{"url":"https://github.com/kunchenguid/firstmate/pull/7634","checked_at":"2026-10-23T06:19:18Z","error":null}
+{"url":"https://github.com/kunchenguid/firstmate/pull/7669","checked_at":"2026-10-23T06:19:43Z","error":null}

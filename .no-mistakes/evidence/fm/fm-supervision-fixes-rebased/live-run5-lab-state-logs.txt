@@ -1,0 +1,32 @@
+### state/.watch-cycle-exits.log
+arm_pid=84760	watcher_pid=84818	origin=started	started_at=1792735955	ended_at=1792735955	exit_code=0	signal=none	reason=actionable-check	beacon_age=0	lock_before=pid:84818|identity:Thu Oct 22 23:12:35 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	lock_after=pid:none|identity:none	successor=started:85744
+arm_pid=85630	watcher_pid=85744	origin=started	started_at=1792735956	ended_at=1792735963	exit_code=143	signal=TERM	reason=signal-exit	beacon_age=7	lock_before=pid:85744|identity:Thu Oct 22 23:12:36 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	lock_after=pid:none|identity:none	successor=none
+arm_pid=95404	watcher_pid=85744	origin=attached	started_at=1792735963	ended_at=1792735963	exit_code=unknown	signal=unknown	reason=taken-over	beacon_age=7	lock_before=pid:85744|identity:Thu Oct 22 23:12:36 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	lock_after=pid:none|identity:none	successor=started:96281
+arm_pid=95404	watcher_pid=96281	origin=started	started_at=1792735963	ended_at=1792735963	exit_code=0	signal=none	reason=actionable-check	beacon_age=0	lock_before=pid:96281|identity:Thu Oct 22 23:12:43 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	lock_after=pid:none|identity:none	successor=started:97043
+arm_pid=96994	watcher_pid=97043	origin=started	started_at=1792735964	ended_at=1792736010	exit_code=0	signal=none	reason=actionable-check	beacon_age=0	lock_before=pid:97043|identity:Thu Oct 22 23:12:44 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	lock_after=pid:none|identity:none	successor=none
+arm_pid=95212	watcher_pid=95302	origin=started	started_at=1792736171	ended_at=1792736218	exit_code=0	signal=none	reason=actionable-check	beacon_age=0	lock_before=pid:95302|identity:Thu Oct 22 23:16:11 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	lock_after=pid:none|identity:none	successor=started:19927
+arm_pid=19838	watcher_pid=19927	origin=started	started_at=1792736218	ended_at=1792736228	exit_code=143	signal=TERM	reason=signal-exit	beacon_age=9	lock_before=pid:19927|identity:Thu Oct 22 23:16:58 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	lock_after=pid:none|identity:none	successor=none
+arm_pid=24397	watcher_pid=19927	origin=attached	started_at=1792736228	ended_at=1792736229	exit_code=unknown	signal=unknown	reason=taken-over	beacon_age=10	lock_before=pid:19927|identity:Thu Oct 22 23:16:58 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	lock_after=pid:none|identity:none	successor=started:24826
+
+### state/.watch-deliveries.log
+84818	Thu Oct 22 23:12:35 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	check: rearm-resurface
+96281	Thu Oct 22 23:12:43 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	check: rearm-resurface
+97043	Thu Oct 22 23:12:44 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	check: rearm-resurface
+95302	Thu Oct 22 23:16:11 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-watch.sh	check: rearm-resurface
+
+### state/.supervision-host.log
+1792735955	start	gen=host-84601-1792735955	primary=claude
+1792735955	pass-through	attended	main-only	check: rearm-resurface
+1792735963	start	gen=host-94988-1792735962	primary=claude
+1792735963	take-over	arm=85630
+1792735964	pass-through	attended	main-only	check: rearm-resurface
+1792736171	start	gen=host-94827-1792736171	primary=claude
+1792736218	pass-through	attended	main-only	check: rearm-resurface
+1792736228	start	gen=host-24234-1792736228	primary=claude
+1792736228	take-over	arm=19838
+
+### state/.claude-autoarm-epoch
+epoch=4 owner_pid=23865 outcome=arming updated_at=1792736228 owner_session_id=5cb1e4f8-db33-48a5-8b9a-4d6a0da904ae
+Thu Oct 22 23:17:08 2026     bash /Users/bharath2020/.no-mistakes/worktrees/db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG/bin/fm-claude-stop-autoarm.sh
+Thu Oct 22 23:11:32 2026     claude
+

@@ -1,0 +1,6 @@
+$ FM_HOME=$LAB bin/fm-guard.sh   # pending row, no tasks/checks/sources, no watcher
+exit=0
+
+$ add an in-flight task meta (watched work) and rerun
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+exit=0

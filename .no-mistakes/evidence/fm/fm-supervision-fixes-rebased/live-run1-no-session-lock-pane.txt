@@ -1,0 +1,50 @@
+
+
+⏺ Captain, still holding: I'm running no tools, as you asked. Supervision in this isolated copy is still off and the notification hasn't been handled. To stop this loop, tell me to start supervision
+  here or stop the session.
+
+⏺ Ran 5 stop hooks
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]:
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  TURN WOULD END BLIND - SUPERVISION IS OFF
+  ●  A durable wake row is still waiting to be drained, but no live watcher holds this home lock (last beat: never).
+  ●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.
+  ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+⏺ Captain, nothing has changed. I'm still running no tools, as you asked, and the end-of-turn check will keep firing until you tell me to start supervision here or stop the session.
+
+⏺ Ran 5 stop hooks
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]:
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  TURN WOULD END BLIND - SUPERVISION IS OFF
+  ●  A durable wake row is still waiting to be drained, but no live watcher holds this home lock (last beat: never).
+  ●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.
+  ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+⏺ Captain, I'm still holding to your no-tools instruction. Supervision is off in this isolated copy and one notification is still waiting. Tell me to start supervision here, or stop the session, to
+  end this loop.
+
+⏺ Ran 5 stop hooks
+  ⎿  Stop hook error: [[ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || exit 0; exec "$CLAUDE_PROJECT_DIR"/bin/fm-turnend-guard.sh --claude]:
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ●  TURN WOULD END BLIND - SUPERVISION IS OFF
+  ●  A durable wake row is still waiting to be drained, but no live watcher holds this home lock (last beat: never).
+  ●  The Stop-owned auto-arm did not claim this home either, so recovery is NOT already under way.
+  ●  watcher supervision needs Stop-owned automatic recovery; inspect the hook registration and startup status before ending the turn.
+  ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+
+⏺ A hook blocked the turn from ending 9 consecutive times — overriding and ending turn. For Stop/SubagentStop hooks, check stop_hook_active in the input and return success while it's true. Set
+  CLAUDE_CODE_STOP_HOOK_BLOCK_CAP to raise this limit.
+
+✻ Worked for 57s · done 11:07 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  db8d99ed7ec4/01M5KNC2TWYRN8RC09MFQRD7ZG | b1faef3d | Opus 5.5 | 6% ctx used
+  ⏵⏵ auto mode on (shift+tab to cycle)
